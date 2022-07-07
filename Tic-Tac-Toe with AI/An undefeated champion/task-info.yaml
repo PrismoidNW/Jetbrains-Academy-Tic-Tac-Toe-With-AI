@@ -1,0 +1,1035 @@
+type: edu
+custom_name: stage5
+files:
+- name: src/tictactoe/Main.java
+  visible: true
+  text: |
+    package tictactoe;
+
+    public class Main {
+        public static void main(String[] args) {
+            // write your code here
+        }
+    }
+  learner_created: false
+- name: test/TicTacToeTest.java
+  visible: false
+  text: |
+    import org.hyperskill.hstest.dynamic.DynamicTest;
+    import org.hyperskill.hstest.stage.StageTest;
+    import org.hyperskill.hstest.testcase.CheckResult;
+    import org.hyperskill.hstest.testing.TestedProgram;
+
+    import java.util.List;
+
+
+    public class TicTacToeTest extends StageTest<String> {
+
+        int[] easyAiMoves = new int[9];
+
+        @DynamicTest(order = 0)
+        CheckResult testBadParameters() {
+
+            TestedProgram program = new TestedProgram();
+            program.start();
+
+            String output = program.execute("start");
+            if (!output.toLowerCase().contains("bad parameters")) {
+                return CheckResult.wrong("After entering start command with wrong parameters you should print 'Bad parameters!' and ask to enter a command again!");
+            }
+
+            output = program.execute("start easy");
+            if (!output.toLowerCase().contains("bad parameters")) {
+                return CheckResult.wrong("After entering start command with wrong parameters you should print 'Bad parameters!' and ask to enter a command again!");
+            }
+
+            program.execute("exit");
+
+            if (!program.isFinished()) {
+                return CheckResult.wrong("After entering 'exit' command you should stop the program!");
+            }
+
+            return CheckResult.correct();
+        }
+
+
+        @DynamicTest(order = 1)
+        CheckResult testGridOutput() {
+
+            TestedProgram program = new TestedProgram();
+
+            program.start();
+
+            String output = program.execute("start user easy");
+
+            Grid printedGrid = Grid.fromOutput(output);
+            Grid emptyGrid = Grid.fromLine("_________");
+
+            if (!printedGrid.equals(emptyGrid)) {
+                return CheckResult.wrong("After starting the program you should print an empty grid!\n" +
+                    "Correct empty grid:\n" + emptyGrid);
+            }
+
+            if (!output.toLowerCase().contains("enter the coordinates:")) {
+                return CheckResult.wrong("After printing an empty grid you should ask to enter cell coordinates!");
+            }
+
+            output = program.execute("2 2");
+
+            Grid gridAfterMove = Grid.fromOutput(output);
+            Grid correctGridAfterMove = Grid.fromLine("____X____");
+
+            if (!gridAfterMove.equals(correctGridAfterMove)) {
+                return CheckResult.wrong("After making the move wrong grid was printed.\n" +
+                    "Your grid:\n" + gridAfterMove + "\n" +
+                    "Correct grid:\n" + correctGridAfterMove);
+            }
+
+            if (!output.toLowerCase().replace("'", "\"").contains("making move level \"easy\"")) {
+                return CheckResult.wrong("After entering a cell coordinates you should print:\nMaking move level \"easy\"");
+            }
+
+            Grid gridAfterAiMove = Grid.fromOutput(output, 2);
+
+            if (gridAfterAiMove.equals(gridAfterMove)) {
+                return CheckResult.wrong("After AI move grid wasn't changed!");
+            }
+
+            Grid gameGrid = gridAfterAiMove;
+
+            while (true) {
+                if (gameGrid.getGameState() != GameState.NOT_FINISHED) {
+                    switch (gameGrid.getGameState()) {
+                        case X_WIN:
+                            if (!output.contains("X wins")) {
+                                return CheckResult.wrong("You should print 'X wins' if X win the game");
+                            }
+                            break;
+                        case O_WIN:
+                            if (!output.contains("O wins")) {
+                                return CheckResult.wrong("You should print 'O wins' if O win the game");
+                            }
+                            break;
+                        case DRAW:
+                            if (!output.contains("Draw")) {
+                                return CheckResult.wrong("You should print 'Draw' if the game ends with draw!");
+                            }
+                            break;
+                    }
+                    break;
+                }
+                Position nextMove = Minimax.getMove(gameGrid, CellState.X);
+
+                Grid tempGrid = gameGrid.copy();
+                tempGrid.setCell(nextMove.x, nextMove.y, CellState.X);
+
+                output = program.execute((nextMove.x + 1) + " " + (nextMove.y + 1));
+
+                gameGrid = Grid.fromOutput(output);
+
+                if (!gameGrid.equals(tempGrid)) {
+                    return CheckResult.wrong("After making move (" + nextMove + ") the game grid is wrong!\n" +
+                        "Your gird\n" + gameGrid + "\n" +
+                        "Correct grid\n" + tempGrid);
+                }
+
+                if (gameGrid.getGameState() != GameState.NOT_FINISHED)
+                    continue;
+
+                gameGrid = Grid.fromOutput(output, 2);
+            }
+
+            return CheckResult.correct();
+        }
+
+        @DynamicTest(repeat = 100, order = 2)
+        CheckResult checkEasyAi() {
+            TestedProgram program = new TestedProgram();
+            program.start();
+
+            program.execute("start user easy");
+
+            String output = program.execute("2 2");
+
+            Grid gridAfterAiMove = Grid.fromOutput(output, 2);
+
+            CellState[][] array = gridAfterAiMove.getGrid();
+
+            for (int i = 0; i < 9; i++) {
+                if (i == 4) {
+                    continue;
+                }
+                if (array[i / 3][i % 3] == CellState.O) {
+                    easyAiMoves[i]++;
+                }
+            }
+
+            return CheckResult.correct();
+        }
+
+        @DynamicTest(order = 3)
+        CheckResult checkRandom() {
+            double averageScore = 0;
+
+            for (int i = 0; i < easyAiMoves.length; i++) {
+                averageScore += (i + 1) * easyAiMoves[i];
+            }
+
+            averageScore /= 8;
+
+            double expectedValue = (double) (1 + 2 + 3 + 4 + 6 + 7 + 8 + 9) * 100 / 8 / 8;
+
+            if (Math.abs(averageScore - expectedValue) > 20) {
+                return CheckResult.wrong("Looks like your Easy level AI doesn't make a random move!");
+            }
+
+            return CheckResult.correct();
+        }
+
+        boolean isEasyNotMovingLikeMedium = false;
+
+        @DynamicTest(repeat = 30, order = 4)
+        CheckResult checkEasyNotMovingLikeMedium() {
+
+            if (isEasyNotMovingLikeMedium) {
+                return CheckResult.correct();
+            }
+
+            TestedProgram program = new TestedProgram();
+            program.start();
+            program.execute("start user easy");
+
+            String output = program.execute("2 2");
+
+            Grid gameGrid = Grid.fromOutput(output, 2);
+
+            CellState[][] cellStates = gameGrid.getGrid();
+
+            if (cellStates[0][0] == CellState.EMPTY && cellStates[2][2] == CellState.EMPTY) {
+                output = program.execute("1 1");
+                gameGrid = Grid.fromOutput(output, 2);
+                if (gameGrid.getGrid()[2][2] == CellState.EMPTY) {
+                    isEasyNotMovingLikeMedium = true;
+                }
+            } else {
+                output = program.execute("1 3");
+                gameGrid = Grid.fromOutput(output, 2);
+                if (gameGrid.getGrid()[2][0] == CellState.EMPTY) {
+                    isEasyNotMovingLikeMedium = true;
+                }
+            }
+
+            program.stop();
+            return CheckResult.correct();
+        }
+
+        @DynamicTest(order = 5)
+        CheckResult checkEasyNotMovingLikeMediumAfter() {
+            if (!isEasyNotMovingLikeMedium) {
+                return CheckResult.wrong("Looks like your Easy level AI doesn't make a random move!");
+            }
+            return CheckResult.correct();
+        }
+
+        @DynamicTest(order = 6)
+        CheckResult checkEasyVsEasy() {
+
+            TestedProgram program = new TestedProgram();
+            program.start();
+
+            String output = program.execute("start easy easy");
+
+            List<Grid> gridList = Grid.allGridsFromOutput(output);
+
+            Grid.checkGridSequence(gridList);
+
+            return CheckResult.correct();
+        }
+
+        @DynamicTest(repeat = 10, order = 7)
+        CheckResult checkMediumAi() {
+            TestedProgram program = new TestedProgram();
+            program.start();
+            program.execute("start user medium");
+
+            String output = program.execute("2 2");
+
+            Grid gameGrid = Grid.fromOutput(output, 2);
+
+            CellState[][] cellStates = gameGrid.getGrid();
+
+            if (cellStates[0][0] == CellState.EMPTY && cellStates[2][2] == CellState.EMPTY) {
+                output = program.execute("1 1");
+                gameGrid = Grid.fromOutput(output, 2);
+                if (gameGrid.getGrid()[2][2] == CellState.EMPTY) {
+                    return CheckResult.wrong("Looks like your Medium level AI doesn't make a correct move!");
+                }
+            } else {
+                output = program.execute("1 3");
+                gameGrid = Grid.fromOutput(output, 2);
+                if (gameGrid.getGrid()[2][0] == CellState.EMPTY) {
+                    return CheckResult.wrong("Looks like your Medium level AI doesn't make a correct move!");
+                }
+            }
+            program.stop();
+
+            return CheckResult.correct();
+        }
+
+        @DynamicTest(order = 8, repeat = 5)
+        CheckResult checkMediumVsMedium() {
+
+            TestedProgram program = new TestedProgram();
+            program.start();
+
+            String output = program.execute("start medium medium");
+
+            List<Grid> gridList = Grid.allGridsFromOutput(output);
+
+            Grid.checkGridSequence(gridList);
+
+            return CheckResult.correct();
+        }
+
+        boolean isMediumNotMovingLikeHard = false;
+
+        @DynamicTest(repeat = 30, order = 9)
+        CheckResult checkMediumNotMovingLikeHard() {
+
+            if (isMediumNotMovingLikeHard) {
+                return CheckResult.correct();
+            }
+
+            TestedProgram program = new TestedProgram();
+            program.start();
+
+            program.execute("start user medium");
+
+            String output = program.execute("2 2");
+
+            Grid userMoveGrid = Grid.fromOutput(output, 1);
+            Grid mediumMoveGrid = Grid.fromOutput(output, 2);
+
+            Position mediumMove = Grid.getMove(userMoveGrid, mediumMoveGrid);
+
+            List<Position> minimaxCorrectPositions = Minimax.getAvailablePositions(userMoveGrid, CellState.O);
+
+            if (!minimaxCorrectPositions.contains(mediumMove)) {
+                isMediumNotMovingLikeHard = true;
+            }
+
+            return CheckResult.correct();
+        }
+
+        @DynamicTest(order = 10)
+        CheckResult checkMediumNotMovingLikeHardAfter() {
+            if (!isMediumNotMovingLikeHard) {
+                return CheckResult.wrong("Looks like Medium level AI doesn't make a random move!");
+            }
+            return CheckResult.correct();
+        }
+
+        @DynamicTest(order = 11)
+        CheckResult checkHardAi() {
+
+            TestedProgram program = new TestedProgram();
+            program.start();
+
+            String output = program.execute("start user hard");
+            Grid grid = Grid.fromOutput(output);
+            Position nextMove = Minimax.getMove(grid, CellState.X);
+            output = program.execute((nextMove.x + 1) + " " + (nextMove.y + 1));
+
+            while (!output.toLowerCase().contains("win") && !output.toLowerCase().contains("draw")) {
+                Grid gridAfterUserMove = Grid.fromOutput(output);
+                Grid gridAfterAiMove = Grid.fromOutput(output, 2);
+                Position aiMove = Grid.getMove(gridAfterUserMove, gridAfterAiMove);
+
+                List<Position> correctMinimaxMovePositions = Minimax.getAvailablePositions(gridAfterUserMove, CellState.O);
+                if (!correctMinimaxMovePositions.contains(aiMove)) {
+                    return CheckResult.wrong("Your minimax algorithm is wrong! It chooses wrong positions to make a move!");
+                }
+
+                nextMove = Minimax.getMove(gridAfterAiMove, CellState.X);
+
+                output = program.execute((nextMove.x + 1) + " " + (nextMove.y + 1));
+            }
+
+            return CheckResult.correct();
+        }
+
+        @DynamicTest(repeat = 5, order = 12)
+        CheckResult checkHardVsHard() {
+
+            TestedProgram program = new TestedProgram();
+            program.start();
+
+            String output = program.execute("start hard hard");
+
+            if (!output.toLowerCase().contains("draw")) {
+                return CheckResult.wrong("The result of the game between minimax algorithms should be always 'Draw'!\n" +
+                    "Make sure your output contains 'Draw'.");
+            }
+
+            return CheckResult.correct();
+        }
+    }
+  learner_created: false
+- name: src/tictactoe/game/players/Player.java
+  visible: true
+  text: |
+    package tictactoe.game.players;
+
+    import tictactoe.game.Board;
+    import tictactoe.game.Coordinates;
+    import tictactoe.game.settings.Settings;
+
+    import java.util.HashSet;
+    import java.util.Random;
+    import java.util.Scanner;
+    import java.util.Set;
+
+    public class Player {
+
+        public final Random random = new Random();
+        public final Scanner scanner = new Scanner(System.in);
+        private final Settings type;
+        private final Board board;
+
+        public Player(Settings type, Board board) {
+            this.type = type;
+            this.board = board;
+        }
+
+        public Board getBoard() {
+            return this.board;
+        }
+
+        public void setSpot(int x, int y, char charToPlace) {
+            Board.board[y][x] = charToPlace;
+        }
+
+        public void getInput(boolean isFirstPlayer) {
+            int x;
+            int y;
+            while (true) {
+                System.out.print("\nEnter the coordinates: ");
+                try {
+                    y = scanner.nextInt();
+                    x = scanner.nextInt();
+                } catch (Exception ignore) {
+                    System.out.print("You should enter numbers!");
+                    scanner.next();
+                    continue;
+                }
+                if (getBoard().cells.coordsOutOfRange(y, x)) {
+                    System.out.print("Coordinates should be from 1 to 3!");
+                    continue;
+                } else if (Board.board[y-1][x-1] != '_') {
+                    System.out.print("This cell is occupied! Choose another one!");
+                    continue;
+                }
+                break;
+            }
+            if (isFirstPlayer)
+                setSpot(x-1, y-1, 'X');
+            else
+                setSpot(x-1, y-1, 'O');
+
+            getBoard().printBoard();
+        }
+    }
+  learner_created: true
+- name: src/tictactoe/game/Cells.java
+  visible: true
+  text: |
+    package tictactoe.game;
+
+    public class Cells {
+
+        public boolean isEmpty(int y, int x) {
+            return Board.board[y][x] == '_';
+        }
+
+        public boolean isBoardEmpty(){
+            int count = 0;
+            for (int i = 0; i < 3; i++) {
+                for (int j = 0; j < 3; j++) {
+                    if (isEmpty(i,j)){
+                        count++;
+                    }
+                }
+            }
+            return count == 0;
+        }
+
+        public boolean coordsOutOfRange(int y, int x) {
+            return ((y > 3) || (y < 1)) || ((x > 3) || (x < 1));
+        }
+
+        private boolean xWins() {
+            return crossThreeExists('X') || horizontalThreeExists('X') || verticalThreeExists('X');
+        }
+
+        private boolean oWins() {
+            return crossThreeExists('O') || horizontalThreeExists('O') || verticalThreeExists('O');
+        }
+
+        public boolean finalMessage() {
+            if (xWins()) {
+                System.out.print("X wins");
+                return true;
+            } else if (oWins()) {
+                System.out.print("O wins");
+                return true;
+
+            } else if (!xWins() && !oWins()) {
+                /*for (int i = 0; i < 3; i++) {
+                    for (int j = 0; j < 3; j++) {
+                        if (Board.board[i][j] == '_') {
+                            System.out.print("\nGame not finished");
+                            return true;
+                        }
+                    }
+                }*/
+                if (isBoardEmpty()) {
+                    System.out.print("Draw");
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public boolean crossThreeExists(char charToCheck) {
+            int count = 0;
+            int y = 0;
+            int x = 0;
+
+
+            boolean isFirstDone = false;
+
+            for (int i = 0; i < 2; i++) {
+                if (!isFirstDone) {
+                    for (int j = 0; j < 3; j++) {
+                        if (y == 3 || x == 3) {
+                            break;
+                        }
+                        if (Board.board[y][x] == charToCheck) {
+                            count++;
+                        }
+                        x++;
+                        y++;
+                    }
+                    if (count == 3) return true;
+                } else {
+                    x = 2;
+                    y = 0;
+                    count = 0;
+                    for (int j = 0; j < 3; j++) {
+                        if (y == 3 || x == 3) {
+                            break;
+                        }
+                        if (Board.board[y][x] == charToCheck) {
+                            count++;
+                        }
+                        x--;
+                        y++;
+                    }
+                }
+                isFirstDone = true;
+            }
+            return count == 3;
+        }
+
+        public boolean horizontalThreeExists(char charToCheck) {
+            int count = 0;
+
+            for (int i = 0; i < 3; i++) {
+                for (int j = 0; j < 3; j++) {
+                    if (Board.board[i][j] == charToCheck) {
+                        count++;
+                    }
+                }
+                if (count == 3) {
+                    return true;
+                } else {
+                    count = 0;
+                }
+            }
+
+            return false;
+        }
+
+        public boolean verticalThreeExists(char charToCheck) {
+            int count = 0;
+
+            for (int i = 0; i < 3; i++) {
+                for (int j = 0; j < 3; j++) {
+                    if (Board.board[j][i] == charToCheck) {
+                        count++;
+                    }
+                }
+                if (count == 3) {
+                    return true;
+                } else {
+                    count = 0;
+                }
+            }
+            return false;
+        }
+    }
+  learner_created: true
+- name: src/tictactoe/game/settings/Settings.java
+  visible: true
+  text: |
+    package tictactoe.game.settings;
+
+    public enum Settings {
+        USER("user"),
+        EASY("easy"),
+        MEDIUM("medium"),
+        HARD("hard");
+
+        private final String inputType;
+
+        Settings(String inputType){
+            this.inputType = inputType;
+        }
+
+        public static Settings fromType(String inputType){
+            return Settings.valueOf(inputType.toUpperCase());
+        }
+    }
+  learner_created: true
+- name: src/tictactoe/game/settings/DifficultyHard.java
+  visible: true
+  text: |
+    package tictactoe.game.settings;
+
+    import tictactoe.game.Board;
+    import tictactoe.game.players.AI;
+
+    public class DifficultyHard extends AI {
+
+        public DifficultyHard(Settings type, Board board) {
+            super(type, board);
+        }
+
+        @Override
+        public void getInput(boolean isFirstPlayer) {
+            int x;
+            int y;
+            do {
+                x = random.nextInt(0, 3);
+                y = random.nextInt(0, 3);
+
+            } while (!getBoard().cells.isEmpty(y, x));
+
+            System.out.println("Making move level \"medium\"");
+            if (isFirstPlayer) {
+                Board.board[y][x] = 'X';
+            } else {
+                Board.board[y][x] = 'O';
+            }
+            getBoard().printBoard();
+        }
+    }
+  learner_created: true
+- name: src/tictactoe/game/Board.java
+  visible: true
+  text: |
+    package tictactoe.game;
+
+    import tictactoe.game.players.AI;
+    import tictactoe.game.players.Player;
+    import tictactoe.game.settings.DifficultyHard;
+    import tictactoe.game.settings.DifficultyMedium;
+    import tictactoe.game.settings.Settings;
+
+    import java.util.Arrays;
+
+    public class Board {
+        public static char[][] board = new char[3][3];
+        public final Cells cells = new Cells();
+        private Player playerOne;
+        private Player playerTwo;
+
+        public Board(String playerOne, String playerTwo) {
+            for (int i = 0; i < 3; i++) {
+                Arrays.fill(board[i], '_');
+            }
+
+            if (Settings.fromType(playerOne).equals(Settings.EASY)) {
+                this.playerOne = new AI(Settings.EASY, this);
+
+            } else if (Settings.fromType(playerOne).equals(Settings.MEDIUM)) {
+                this.playerOne = new DifficultyMedium(Settings.MEDIUM, this);
+
+            } else if (Settings.fromType(playerOne).equals(Settings.HARD)) {
+                this.playerOne = new DifficultyHard(Settings.HARD, this);
+
+            } else if (Settings.fromType(playerOne).equals(Settings.USER)) {
+                this.playerOne = new Player(Settings.USER, this);
+            }
+
+            if (Settings.fromType(playerTwo).equals(Settings.EASY)) {
+                this.playerTwo = new AI(Settings.EASY, this);
+
+            } else if (Settings.fromType(playerTwo).equals(Settings.MEDIUM)) {
+                this.playerTwo = new DifficultyMedium(Settings.MEDIUM, this);
+
+            } else if (Settings.fromType(playerTwo).equals(Settings.HARD)) {
+                this.playerTwo = new DifficultyHard(Settings.HARD, this);
+
+            } else if (Settings.fromType(playerTwo).equals(Settings.USER)) {
+                this.playerTwo = new Player(Settings.USER, this);
+            }
+        }
+
+        public void printBoard() {
+            System.out.println("---------");
+            for (int i = 0; i < 3; i++) {
+                System.out.print("| ");
+                for (int j = 0; j < 3; j++) {
+                    if (board[i][j] == '_') {
+                        System.out.print("  ");
+                    } else {
+                        System.out.print(board[i][j] + " ");
+                    }
+                }
+                System.out.println("|");
+            }
+            System.out.print("---------\n");
+        }
+
+        public void startGame() {
+            printBoard();
+
+            while (true) {
+
+                playerOne.getInput(true);
+
+                if (cells.finalMessage()) {
+                    return;
+                }
+
+                System.out.println("");
+                playerTwo.getInput(false);
+
+
+                if (cells.finalMessage()) {
+                    return;
+                }
+            }
+        }
+    }
+  learner_created: true
+- name: src/tictactoe/game/players/AI.java
+  visible: true
+  text: |
+    package tictactoe.game.players;
+
+    import tictactoe.game.Board;
+    import tictactoe.game.Coordinates;
+    import tictactoe.game.settings.Settings;
+
+    import java.util.HashSet;
+    import java.util.Set;
+
+    public class AI extends Player {
+
+        public AI(Settings type, Board board) {
+            super(type, board);
+        }
+
+        public boolean crossOneSpotWin(char charToCheck, boolean opposite) {
+            char oppositeOpponent = charToCheck;
+            Set<Coordinates> coordinates;
+
+            if (opposite) {
+                oppositeOpponent = charToCheck == 'X' ? 'O' : 'X';
+            }
+
+            coordinates = checkCrossCoordinates(oppositeOpponent);
+
+            if (coordinates.size() == 3) {
+                for (Coordinates coordinate : coordinates) {
+                    if (!coordinate.isOccupied()) {
+                        this.setSpot(coordinate.getX(), coordinate.getY(), charToCheck);
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        public boolean horizontalOneSpotWin(char charToCheck, boolean opposite) {
+            char oppositeOpponent = charToCheck;
+            Set<Coordinates> coordinates;
+
+            if (opposite) {
+                oppositeOpponent = charToCheck == 'X' ? 'O' : 'X';
+            }
+            coordinates = checkHorizontalCoordinates(oppositeOpponent);
+
+            if (coordinates.size() == 3) {
+                for (Coordinates coordinate : coordinates) {
+                    if (!coordinate.isOccupied()) {
+                        setSpot(coordinate.getX(), coordinate.getY(), charToCheck);
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        public boolean verticalOneSpotWin(char charToCheck, boolean opposite) {
+            char oppositeOpponent = charToCheck;
+            Set<Coordinates> coordinates;
+
+            if (opposite) {
+                oppositeOpponent = charToCheck == 'X' ? 'O' : 'X';
+            }
+            coordinates = checkVerticalCoordinates(oppositeOpponent);
+
+            if (coordinates.size() == 3) {
+                for (Coordinates coordinate : coordinates) {
+                    if (!coordinate.isOccupied()) {
+                        setSpot(coordinate.getX(), coordinate.getY(), charToCheck);
+                        System.out.println(coordinate.getX() + ", " + coordinate.getY() + ", " + coordinate.isOccupied());
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        public boolean canWinWithOneMove(char charToCheck, boolean opposite) {
+            if (crossOneSpotWin(charToCheck, opposite)) return true;
+            if (horizontalOneSpotWin(charToCheck, opposite)) return true;
+            return verticalOneSpotWin(charToCheck, opposite);
+        }
+
+        public boolean canBlockAttack(char charToCheck) {
+            return canWinWithOneMove(charToCheck, true);
+        }
+
+        private boolean hasMultipleEmptySpots(Set<Coordinates> coordsToCheck) {
+            int spots = 0;
+
+            for (Coordinates coords : coordsToCheck) {
+                if (!coords.isOccupied()) {
+                    spots++;
+                }
+            }
+            return spots > 1;
+        }
+
+        private int countOccupiedSpots(Set<Coordinates> coordsToCheck) {
+            int spots = 0;
+            for (Coordinates coords : coordsToCheck) {
+                if (coords.isOccupied()) {
+                    spots++;
+                }
+            }
+            return spots;
+        }
+
+        public Set<Coordinates> checkCrossCoordinates(char charToCheck) {
+            Set<Coordinates> coords = new HashSet<>();
+            int y = 0;
+            int x = 0;
+
+            for (int j = 0; j < 3; j++) {
+                if (Board.board[y][x] == charToCheck) {
+                    coords.add(new Coordinates(x, y, true));
+                } else if (getBoard().cells.isEmpty(y, x)) {
+                    coords.add(new Coordinates(x, y, false));
+                }
+                x++;
+                y++;
+            }
+             if (!hasMultipleEmptySpots(coords) && countOccupiedSpots(coords) == 2) {
+                return coords;
+            } else {
+                coords = new HashSet<>();
+            }
+
+            x = 2;
+            y = 0;
+            for (int j = 0; j < 3; j++) {
+                if (Board.board[y][x] == charToCheck) {
+                    coords.add(new Coordinates(x, y, true));
+                } else if (getBoard().cells.isEmpty(y, x)) {
+                    coords.add(new Coordinates(x, y, false));
+                }
+                x--;
+                y++;
+            }
+
+            if (!hasMultipleEmptySpots(coords) && countOccupiedSpots(coords) == 2) {
+                return coords;
+            }
+
+            return new HashSet<>();
+        }
+
+        public Set<Coordinates> checkHorizontalCoordinates(char charToCheck) {
+            Set<Coordinates> coords = new HashSet<>();
+
+            for (int i = 0; i < 3; i++) {
+                for (int j = 0; j < 3; j++) {
+                    if (Board.board[i][j] == charToCheck) {
+                        coords.add(new Coordinates(j, i, true));
+                    } else if (getBoard().cells.isEmpty(i, j)) {
+                        coords.add(new Coordinates(j, i, false));
+                    }
+                }
+                if (hasMultipleEmptySpots(coords)) {
+                    coords = new HashSet<>();
+                } else if (!hasMultipleEmptySpots(coords) && countOccupiedSpots(coords) == 2) {
+                    break;
+                }
+            }
+            return coords;
+        }
+
+        public Set<Coordinates> checkVerticalCoordinates(char charToCheck) {
+            Set<Coordinates> coords = new HashSet<>();
+
+            for (int i = 0; i < 3; i++) {
+                for (int j = 0; j < 3; j++) {
+                    if (Board.board[j][i] == charToCheck) {
+                        coords.add(new Coordinates(j, i, true));
+                    } else if (getBoard().cells.isEmpty(i, j)) {
+                        coords.add(new Coordinates(j, i, false));
+                    }
+                }
+                if (hasMultipleEmptySpots(coords)) {
+                    coords = new HashSet<>();
+                } else if (!hasMultipleEmptySpots(coords) && countOccupiedSpots(coords) == 2) {
+                    break;
+                }
+            }
+            return coords;
+        }
+
+        @Override
+        public void getInput(boolean isFirstPlayer) {
+
+            System.out.println("Making move level \"easy\"");
+            int x;
+            int y;
+            do {
+                x = random.nextInt(0, 3);
+                y = random.nextInt(0, 3);
+            } while (!getBoard().cells.isEmpty(y, x));
+
+            if (isFirstPlayer)
+                setSpot(x, y, 'X');
+            else
+                setSpot(x, y, 'O');
+
+            getBoard().printBoard();
+        }
+    }
+  learner_created: true
+- name: src/tictactoe/game/Coordinates.java
+  visible: true
+  text: |
+    package tictactoe.game;
+
+    public class Coordinates {
+
+        private int x;
+        private int y;
+        private boolean isOccupied;
+
+        public Coordinates(int x, int y, boolean isOccupied) {
+            this.x = x;
+            this.y = y;
+            this.isOccupied = isOccupied;
+        }
+
+        public boolean isOccupied() {
+            return isOccupied;
+        }
+
+        public void setOccupied(boolean occupied) {
+            isOccupied = occupied;
+        }
+
+        public int getX() {
+            return x;
+        }
+
+        public void setX(int x) {
+            this.x = x;
+        }
+
+        public int getY() {
+            return y;
+        }
+
+        public void setY(int y) {
+            this.y = y;
+        }
+    }
+  learner_created: true
+- name: src/tictactoe/game/settings/DifficultyMedium.java
+  visible: true
+  text: |
+    package tictactoe.game.settings;
+
+    import tictactoe.game.Board;
+    import tictactoe.game.players.AI;
+
+    public class DifficultyMedium extends AI {
+
+        public DifficultyMedium(Settings type, Board board) {
+            super(type, board);
+        }
+
+        @Override
+        public void getInput(boolean isFirstPlayer) {
+            System.out.println("Making move level \"medium\"");
+            int x;
+            int y;
+            if (isFirstPlayer) {
+                if (canBlockAttack('X')){
+                    System.out.println("CAN BLOCK 1st");
+                }
+                else if (canWinWithOneMove('X', false)){
+                    System.out.println("CAN WIN 1st");
+                }
+                else {
+                    do {
+                        x = random.nextInt(0, 3);
+                        y = random.nextInt(0, 3);
+                    } while (!getBoard().cells.isEmpty(y, x));
+                    setSpot(x, y, 'X');
+                }
+            } else {
+                if (canBlockAttack('O')){
+                    System.out.println("CAN BLOCK 2nd");
+                } else if (canWinWithOneMove('O', false)){
+                    System.out.println("CAN WIN 2nd");
+                } else {
+                    do {
+                        x = random.nextInt(0, 3);
+                        y = random.nextInt(0, 3);
+                    } while (!getBoard().cells.isEmpty(y, x));
+                    setSpot(x, y, 'O');
+                }
+            }
+            getBoard().printBoard();
+        }
+    }
+  learner_created: true
+feedback_link: https://hyperskill.org/learn/step/7438#comment
+status: Solved
+feedback:
+  message: Well done! You've finished the project. Select a new project on <a href="https://hyperskill.org/projects">JetBrains
+    Academy</a> to continue learning.
+  time: Thu, 07 Jul 2022 03:41:15 UTC
+record: -1
